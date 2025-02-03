@@ -1,41 +1,43 @@
 import type { ChangeEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  RiLoader2Line,
+} from '@remixicon/react'
 import s from './style.module.css'
 import LogoSite from '@/app/components/base/logo/logo-site'
 import Switch from '@/app/components/base/switch'
 import Button from '@/app/components/base/button'
-import { Loading02 } from '@/app/components/base/icons/src/vender/line/general'
 import { MessageDotsCircle } from '@/app/components/base/icons/src/vender/solid/communication'
 import { ImagePlus } from '@/app/components/base/icons/src/vender/line/images'
 import { useProviderContext } from '@/context/provider-context'
 import { Plan } from '@/app/components/billing/type'
 import { imageUpload } from '@/app/components/base/image-uploader/utils'
-import type {} from '@/app/components/base/image-uploader/utils'
 import { useToastContext } from '@/app/components/base/toast'
 import {
   updateCurrentWorkspace,
 } from '@/service/common'
 import { useAppContext } from '@/context/app-context'
-import { API_PREFIX } from '@/config'
 
 const ALLOW_FILE_EXTENSIONS = ['svg', 'png']
 
 const CustomWebAppBrand = () => {
   const { t } = useTranslation()
   const { notify } = useToastContext()
-  const { plan } = useProviderContext()
+  const { plan, enableBilling } = useProviderContext()
   const {
     currentWorkspace,
     mutateCurrentWorkspace,
     isCurrentWorkspaceManager,
   } = useAppContext()
   const [fileId, setFileId] = useState('')
+  const [imgKey, setImgKey] = useState(Date.now())
   const [uploadProgress, setUploadProgress] = useState(0)
-  const isSandbox = plan.type === Plan.sandbox
+  const isSandbox = enableBilling && plan.type === Plan.sandbox
   const uploading = uploadProgress > 0 && uploadProgress < 100
   const webappLogo = currentWorkspace.custom_config?.replace_webapp_logo || ''
   const webappBrandRemoved = currentWorkspace.custom_config?.remove_webapp_brand
+  const uploadDisabled = isSandbox || webappBrandRemoved || !isCurrentWorkspaceManager
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -74,6 +76,7 @@ const CustomWebAppBrand = () => {
     })
     mutateCurrentWorkspace()
     setFileId('')
+    setImgKey(Date.now())
   }
 
   const handleRestore = async () => {
@@ -81,7 +84,7 @@ const CustomWebAppBrand = () => {
       url: '/workspaces/custom-config',
       body: {
         remove_webapp_brand: false,
-        replace_webapp_logo: null,
+        replace_webapp_logo: '',
       },
     })
     mutateCurrentWorkspace()
@@ -92,7 +95,6 @@ const CustomWebAppBrand = () => {
       url: '/workspaces/custom-config',
       body: {
         remove_webapp_brand: checked,
-        replace_webapp_logo: webappLogo,
       },
     })
     mutateCurrentWorkspace()
@@ -106,7 +108,7 @@ const CustomWebAppBrand = () => {
   return (
     <div className='py-4'>
       <div className='mb-2 text-sm font-medium text-gray-900'>{t('custom.webapp.title')}</div>
-      <div className='relative mb-4 pl-4 pb-6 pr-[119px] rounded-xl border-[0.5px] border-black/[0.08] shadow-xs bg-gray-50 overflow-hidden'>
+      <div className='relative mb-4 pl-4 pb-6 pr-[119px] rounded-xl border-[0.5px] border-black/8 shadow-xs bg-gray-50 overflow-hidden'>
         <div className={`${s.mask} absolute top-0 left-0 w-full -bottom-2 z-10`}></div>
         <div className='flex items-center -mt-2 mb-4 p-6 bg-white rounded-xl'>
           <div className='flex items-center px-4 w-[125px] h-9 rounded-lg bg-primary-600 border-[0.5px] border-primary-700 shadow-xs'>
@@ -122,7 +124,7 @@ const CustomWebAppBrand = () => {
                 POWERED BY
                 {
                   webappLogo
-                    ? <img key={webappLogo} src={`${API_PREFIX.slice(0, -12)}/files/workspaces/${currentWorkspace.id}/webapp-logo`} alt='logo' className='ml-2 block w-auto h-5' />
+                    ? <img src={`${webappLogo}?hash=${imgKey}`} alt='logo' className='ml-2 block w-auto h-5' />
                     : <LogoSite className='ml-2 !h-5' />
                 }
               </div>
@@ -152,10 +154,9 @@ const CustomWebAppBrand = () => {
             !uploading && (
               <Button
                 className={`
-                  relative mr-2 !h-8 !px-3 bg-white !text-[13px] 
-                  ${isSandbox ? 'opacity-40' : ''}
+                  relative mr-2
                 `}
-                disabled={isSandbox || webappBrandRemoved || !isCurrentWorkspaceManager}
+                disabled={uploadDisabled}
               >
                 <ImagePlus className='mr-2 w-4 h-4' />
                 {
@@ -166,13 +167,13 @@ const CustomWebAppBrand = () => {
                 <input
                   className={`
                     absolute block inset-0 opacity-0 text-[0] w-full
-                    ${(isSandbox || webappBrandRemoved) ? 'cursor-not-allowed' : 'cursor-pointer'}
+                    ${uploadDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}
                   `}
                   onClick={e => (e.target as HTMLInputElement).value = ''}
                   type='file'
                   accept={ALLOW_FILE_EXTENSIONS.map(ext => `.${ext}`).join(',')}
                   onChange={handleChange}
-                  disabled={isSandbox || webappBrandRemoved || !isCurrentWorkspaceManager}
+                  disabled={uploadDisabled}
                 />
               </Button>
             )
@@ -180,10 +181,10 @@ const CustomWebAppBrand = () => {
           {
             uploading && (
               <Button
-                className='relative mr-2 !h-8 !px-3 bg-white !text-[13px] opacity-40'
+                className='relative mr-2'
                 disabled={true}
               >
-                <Loading02 className='animate-spin mr-2 w-4 h-4' />
+                <RiLoader2Line className='animate-spin mr-2 w-4 h-4' />
                 {t('custom.uploading')}
               </Button>
             )
@@ -192,15 +193,15 @@ const CustomWebAppBrand = () => {
             fileId && (
               <>
                 <Button
-                  type='primary'
-                  className='mr-2 !h-8 !px-3 !py-0 !text-[13px]'
+                  variant='primary'
+                  className='mr-2'
                   onClick={handleApply}
                   disabled={webappBrandRemoved || !isCurrentWorkspaceManager}
                 >
                   {t('custom.apply')}
                 </Button>
                 <Button
-                  className='mr-2 !h-8 !px-3 !text-[13px] bg-white'
+                  className='mr-2'
                   onClick={handleCancel}
                   disabled={webappBrandRemoved || !isCurrentWorkspaceManager}
                 >
@@ -211,11 +212,7 @@ const CustomWebAppBrand = () => {
           }
           <div className='mr-2 h-5 w-[1px] bg-black/5'></div>
           <Button
-            className={`
-              !h-8 !px-3 bg-white !text-[13px] 
-              ${isSandbox ? 'opacity-40' : ''}
-            `}
-            disabled={isSandbox || (!webappLogo && !webappBrandRemoved) || webappBrandRemoved || !isCurrentWorkspaceManager}
+            disabled={uploadDisabled || (!webappLogo && !webappBrandRemoved)}
             onClick={handleRestore}
           >
             {t('custom.restore')}
